@@ -1,50 +1,23 @@
-import time, random
-from flask import Flask
-from prometheus_client import Counter, Histogram, make_wsgi_app
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from fastapi import FastAPI
+import time
+import random
 
-app = Flask(__name__)
+from prometheus_client import Histogram, generate_latest
+from fastapi.responses import Response
 
-# Jaeger setup (using OTLP — more stable than old Jaeger exporter)
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(
-    OTLPSpanExporter(endpoint="http://jaeger:4317", insecure=True)
-))
-trace.set_tracer_provider(provider)
-FlaskInstrumentor().instrument_app(app)
-tracer = trace.get_tracer("myapp")
+app = FastAPI()
 
-# Prometheus metrics
-REQUEST_COUNT   = Counter("myapp_requests_total", "Total requests", ["endpoint"])
-REQUEST_LATENCY = Histogram("myapp_request_duration_seconds", "Request duration")
+REQUEST_TIME = Histogram(
+    "http_request_duration_seconds",
+    "Request latency"
+)
 
-@app.route("/")
+@app.get("/")
 def home():
-    REQUEST_COUNT.labels(endpoint="/").inc()
-    with REQUEST_LATENCY.time():
-        time.sleep(random.uniform(0.01, 0.3))
-    return "App is running!"
+    with REQUEST_TIME.time():
+        time.sleep(random.uniform(0.1, 1.2))
+        return {"message": "Hello"}
 
-@app.route("/slow")
-def slow():
-    REQUEST_COUNT.labels(endpoint="/slow").inc()
-    with tracer.start_as_current_span("slow-operation"):
-        time.sleep(random.uniform(0.5, 2.0))
-    return "That was slow — check Jaeger!"
-
-@app.route("/error")
-def error():
-    REQUEST_COUNT.labels(endpoint="/error").inc()
-    if random.random() > 0.5:
-        return "Something went wrong!", 500
-    return "No error this time!"
-
-app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/metrics": make_wsgi_app()})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type="text/plain")
