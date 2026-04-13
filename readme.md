@@ -21,10 +21,15 @@ A containerized observability stack to monitor microservices using Prometheus, G
 ## Project Structure
 full-stack-observability/
 ├── docker-compose.yml
+
 ├── prometheus.yml
+
 ├── alerts.yml
+
 └── app/
+
 ├── main.py
+
 └── Dockerfile
 
 
