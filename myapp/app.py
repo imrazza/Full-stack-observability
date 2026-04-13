@@ -5,14 +5,16 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
 app = Flask(__name__)
 
-# Jaeger setup
+# Jaeger setup (using OTLP — more stable than old Jaeger exporter)
 provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(JaegerExporter(agent_host_name="jaeger", agent_port=6831)))
+provider.add_span_processor(BatchSpanProcessor(
+    OTLPSpanExporter(endpoint="http://jaeger:4317", insecure=True)
+))
 trace.set_tracer_provider(provider)
 FlaskInstrumentor().instrument_app(app)
 tracer = trace.get_tracer("myapp")
